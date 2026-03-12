@@ -26,14 +26,14 @@ KintoneにはCSVからアプリを自動生成する機能がありますが、P
 
 ### オンラインで使う（インストール不要）
 
-👉 **https://CyCats613.github.io/pleasanter-schema-builder/pleasanter-schema-builder.html**
+👉 **https://cycats613.github.io/pleasanter-schema-builder/pleasanter-schema-builder.html**
 
 ブラウザで開くだけで動作します。
 
 ### ローカルで使う
 
 ```bash
-git clone https://github.com/CyCats613/pleasanter-schema-builder.git
+git clone https://github.com/cycats613/pleasanter-schema-builder.git
 ```
 
 `pleasanter-schema-builder.html` をブラウザで直接開くだけで動きます。  
