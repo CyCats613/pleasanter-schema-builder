@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pleasanter Schema Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+  :root {
+    --bg:#0d0d0f;--surface:#16161a;--surface2:#1e1e24;--border:#2a2a35;
+    --accent:#7fff6a;--accent2:#4af0d0;--accent3:#ff6b6b;
+    --text:#e8e8f0;--muted:#6b6b80;
+    --mono:'DM Mono',monospace;--sans:'Syne',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(127,255,106,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(127,255,106,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+  .container{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:40px 24px;}
+  header{margin-bottom:44px;}
+  .header-tag{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px;opacity:.8;}
+  h1{font-size:clamp(28px,5vw,48px);font-weight:800;line-height:1.05;letter-spacing:-.02em;}
+  h1 span{color:var(--accent);}
+  .subtitle{margin-top:12px;color:var(--muted);font-size:14px;font-family:var(--mono);}
+
+  .upload-zone{border:2px dashed var(--border);border-radius:16px;padding:50px 40px;text-align:center;cursor:pointer;transition:all .25s;background:var(--surface);position:relative;overflow:hidden;}
+  .upload-zone::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(127,255,106,.05) 0%,transparent 70%);opacity:0;transition:opacity .3s;}
+  .upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:var(--surface2);}
+  .upload-zone:hover::before,.upload-zone.drag-over::before{opacity:1;}
+  .upload-icon{font-size:44px;margin-bottom:14px;display:block;}
+  .upload-title{font-size:17px;font-weight:700;margin-bottom:8px;}
+  .upload-sub{font-family:var(--mono);font-size:12px;color:var(--muted);}
+  .badge{display:inline-block;background:rgba(127,255,106,.1);color:var(--accent);border:1px solid rgba(127,255,106,.3);border-radius:4px;font-family:var(--mono);font-size:11px;padding:2px 8px;margin:0 3px;}
+  #fileInput{display:none;}
+
+  .status-bar{display:none;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin-top:14px;font-family:var(--mono);font-size:13px;}
+  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1.5s ease-in-out infinite;flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+
+  .sheet-selector{display:none;margin-top:20px;}
+  .label{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;display:block;}
+  .sheet-tabs{display:flex;gap:8px;flex-wrap:wrap;}
+  .sheet-tab{background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;padding:7px 14px;cursor:pointer;transition:all .15s;}
+  .sheet-tab:hover{border-color:var(--accent2);color:var(--accent2);}
+  .sheet-tab.active{background:rgba(74,240,208,.1);border-color:var(--accent2);color:var(--accent2);}
+
+  .editor-section{display:none;margin-top:36px;}
+  .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px;}
+  .section-title{font-size:18px;font-weight:700;}
+  .section-count{font-family:var(--mono);font-size:12px;color:var(--muted);}
+
+  .config-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;}
+  @media(max-width:700px){.config-row{grid-template-columns:1fr;}.col-grid-header{display:none;}.col-row{grid-template-columns:1fr 1fr;}}
+  .config-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;}
+  .config-label{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;display:block;}
+  .config-input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:14px;font-weight:600;padding:8px 12px;width:100%;transition:border-color .15s;}
+  .config-input:focus{outline:none;border-color:var(--accent);}
+
+  .type-selector{display:flex;gap:8px;}
+  .type-btn{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--mono);font-size:12px;padding:10px 8px;cursor:pointer;text-align:center;transition:all .15s;line-height:1.4;}
+  .type-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+  .type-btn.active{background:rgba(74,240,208,.1);border-color:var(--accent2);color:var(--accent2);}
+  .type-btn .type-name{font-weight:700;font-size:13px;display:block;}
+  .type-btn .type-desc{font-size:10px;color:var(--muted);margin-top:3px;display:block;}
+  .type-btn.active .type-desc{color:var(--accent2);opacity:.7;}
+
+  .toggle-row{display:flex;align-items:center;gap:12px;margin-top:4px;}
+  .toggle-switch{width:44px;height:24px;background:var(--border);border-radius:12px;cursor:pointer;position:relative;transition:background .2s;border:none;flex-shrink:0;}
+  .toggle-switch::after{content:'';position:absolute;width:16px;height:16px;background:white;border-radius:50%;top:4px;left:4px;transition:transform .2s;}
+  .toggle-switch.on{background:var(--accent);}
+  .toggle-switch.on::after{transform:translateX(20px);}
+  .toggle-label{font-family:var(--mono);font-size:13px;}
+  .toggle-hint{font-family:var(--mono);font-size:11px;color:var(--muted);}
+
+  .col-grid-header{display:grid;grid-template-columns:2fr 2fr 1.5fr 1fr 1fr 40px;gap:8px;padding:0 12px 10px;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);margin-bottom:8px;}
+  .col-row{display:grid;grid-template-columns:2fr 2fr 1.5fr 1fr 1fr 40px;gap:8px;align-items:center;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;}
+  .col-row.excluded{opacity:.4;}
+  .col-input,.col-select{background:var(--surface2);border:1px solid transparent;border-radius:5px;color:var(--text);font-family:var(--mono);font-size:12px;padding:6px 10px;width:100%;transition:border-color .15s;}
+  .col-input:focus,.col-select:focus{outline:none;border-color:var(--accent);}
+  .col-select option{background:var(--surface2);}
+  .col-toggle{width:32px;height:18px;background:var(--border);border-radius:9px;cursor:pointer;position:relative;transition:background .2s;border:none;flex-shrink:0;}
+  .col-toggle::after{content:'';position:absolute;width:12px;height:12px;background:white;border-radius:50%;top:3px;left:3px;transition:transform .2s;}
+  .col-toggle.on{background:var(--accent);}
+  .col-toggle.on::after{transform:translateX(14px);}
+  .del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px;border-radius:4px;transition:color .15s;line-height:1;}
+  .del-btn:hover{color:var(--accent3);}
+  .add-row-btn{display:flex;align-items:center;gap:8px;background:none;border:1px dashed var(--border);border-radius:8px;color:var(--muted);font-family:var(--mono);font-size:12px;padding:10px 16px;cursor:pointer;width:100%;margin-top:8px;transition:all .15s;}
+  .add-row-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+
+  .generate-bar{display:none;margin-top:28px;gap:12px;flex-wrap:wrap;align-items:center;}
+  .btn-primary{background:var(--accent);color:#0d0d0f;border:none;border-radius:8px;font-family:var(--sans);font-size:14px;font-weight:700;padding:13px 26px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:8px;}
+  .btn-primary:hover{background:#9fffaa;transform:translateY(-1px);}
+  .btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:var(--sans);font-size:14px;font-weight:600;padding:13px 26px;cursor:pointer;transition:all .2s;}
+  .btn-secondary:hover{border-color:var(--accent2);color:var(--accent2);}
+
+  .output-section{display:none;margin-top:36px;}
+  .output-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:12px;}
+  .btn-group{display:flex;gap:8px;flex-wrap:wrap;}
+  .copy-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--accent2);font-family:var(--mono);font-size:12px;padding:8px 14px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px;}
+  .copy-btn:hover{border-color:var(--accent2);background:rgba(74,240,208,.05);}
+  .copy-btn.copied{color:var(--accent);border-color:var(--accent);}
+  .download-btn{background:rgba(127,255,106,.12);border:1px solid rgba(127,255,106,.4);border-radius:6px;color:var(--accent);font-family:var(--mono);font-size:12px;padding:8px 14px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px;font-weight:600;}
+  .download-btn:hover{background:rgba(127,255,106,.22);border-color:var(--accent);}
+  .json-output{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;font-family:var(--mono);font-size:12px;line-height:1.7;color:#c8d0e8;overflow-x:auto;white-space:pre;max-height:480px;overflow-y:auto;}
+  .json-output::-webkit-scrollbar{width:6px;height:6px;}
+  .json-output::-webkit-scrollbar-track{background:var(--surface);}
+  .json-output::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+  .json-key{color:var(--accent2);}.json-str{color:#ffb86c;}.json-num{color:var(--accent);}.json-bool{color:#ff79c6;}.json-null{color:var(--muted);}
+  .notice{background:rgba(127,255,106,.05);border:1px solid rgba(127,255,106,.15);border-radius:10px;padding:14px 18px;font-family:var(--mono);font-size:12px;color:var(--muted);line-height:1.8;margin-top:14px;}
+  .notice strong{color:var(--accent);}
+  .divider{height:1px;background:var(--border);margin:36px 0;}
+  .fade-in{animation:fadeIn .35s ease forwards;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+.builtin-item {
+  display:flex; align-items:center; gap:6px;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:20px; padding:5px 12px; cursor:pointer;
+  font-size:12px; color:var(--muted); transition:all .15s;
+  user-select:none;
+}
+.builtin-item.on {
+  background:rgba(99,102,241,.15); border-color:rgba(99,102,241,.5);
+  color:var(--fg);
+}
+.builtin-item input[type=checkbox] { display:none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="header-tag">// Pleasanter Schema Builder</div>
+    <h1>CSV / Excel から<br><span>サイトパッケージ</span>を生成</h1>
+    <p class="subtitle">ファイルをアップロード → カラム設定 → インポート用JSONをダウンロード</p>
+  </header>
+
+  <div class="upload-zone" id="uploadZone">
+    <span class="upload-icon">📂</span>
+    <div class="upload-title">ファイルをドロップ or クリックして選択</div>
+    <div class="upload-sub">対応形式: <span class="badge">CSV</span> <span class="badge">XLSX</span> <span class="badge">XLS</span></div>
+    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+  </div>
+  <div class="status-bar" id="statusBar"><div class="status-dot"></div><span id="statusText">読み込み中...</span></div>
+
+  <div class="sheet-selector" id="sheetSelector">
+    <span class="label">シートを選択</span>
+    <div class="sheet-tabs" id="sheetTabs"></div>
+  </div>
+
+  <div class="editor-section" id="editorSection">
+    <div class="config-row">
+      <div class="config-card">
+        <span class="config-label">テーブル名</span>
+        <input type="text" class="config-input" id="tableName" placeholder="例: 顧客管理">
+      </div>
+      <div class="config-card">
+        <span class="config-label">テーブル種別</span>
+        <div class="type-selector">
+          <button class="type-btn" id="typeIssues" onclick="setTableType('Issues')">
+            <span class="type-name">Issues</span>
+            <span class="type-desc">期限付き</span>
+          </button>
+          <button class="type-btn" id="typeResults" onclick="setTableType('Results')">
+            <span class="type-name">Results</span>
+            <span class="type-desc">記録</span>
+          </button>
+        </div>
+      </div>
+      <div class="config-card">
+        <span class="config-label">レコードデータ</span>
+        <div class="toggle-row">
+          <button class="toggle-switch" id="includeDataToggle" onclick="toggleIncludeData()"></button>
+          <div>
+            <div class="toggle-label" id="includeDataLabel">含めない</div>
+            <div class="toggle-hint">2行目以降のデータを含める</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-header" style="margin-top:18px;">
+      <div><div class="section-title">既定列の表示設定</div><div class="section-count" id="builtinCount"></div></div>
+    </div>
+    <div id="builtinList" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 0 14px;"></div>
+
+    <div class="section-header">
+      <div><div class="section-title">カラム設定</div><div class="section-count" id="colCount"></div></div>
+    </div>
+    <div class="col-grid-header">
+      <span>元の列名</span><span>表示名</span><span>型</span><span>必須</span><span>含める</span><span></span>
+    </div>
+    <div id="dupeWarning" style="display:none;background:rgba(255,185,0,.1);border:1px solid rgba(255,185,0,.4);border-radius:8px;padding:10px 14px;font-size:12px;color:#ffd060;margin:8px 0;"></div>
+    <div id="colList"></div>
+    <button class="add-row-btn" id="addRowBtn">＋ カラムを手動追加</button>
+  </div>
+
+  <div class="generate-bar" id="generateBar">
+    <button class="btn-primary" id="generateBtn">⚡ JSONを生成</button>
+    <button class="btn-secondary" id="resetBtn">リセット</button>
+  </div>
+
+  <div class="output-section" id="outputSection">
+    <div class="divider"></div>
+    <div class="output-header">
+      <div class="section-title">生成された サイトパッケージ JSON</div>
+      <div class="btn-group">
+        <button class="copy-btn" id="copyBtn">📋 コピー</button>
+        <button class="download-btn" id="downloadBtn">💾 ダウンロード</button>
+      </div>
+    </div>
+    <div class="json-output" id="jsonOutput"></div>
+    <div class="notice" id="outputNotice"></div>
+  </div>
+</div>
+
+<script>
+let state = {
+  fileName:'', rawHeaders:[], rawRows:[], columns:[],
+  tableType:'Issues', includeData:false, wb:null
+};
+
+const pools = {
+  Class: Array.from({length:26},(_,i)=>'Class'+String.fromCharCode(65+i)),
+  Num:   Array.from({length:26},(_,i)=>'Num'+String.fromCharCode(65+i)),
+  Date:  Array.from({length:26},(_,i)=>'Date'+String.fromCharCode(65+i)),
+  Check: Array.from({length:26},(_,i)=>'Check'+String.fromCharCode(65+i)),
+  Desc:  Array.from({length:26},(_,i)=>'Description'+String.fromCharCode(65+i)),
+};
+
+// 既定列定義
+const BUILTIN_RESULTS = [
+  {id:'ResultId', label:'ID'},
+  {id:'Ver',      label:'バージョン'},
+  {id:'Title',    label:'タイトル'},
+  {id:'Body',     label:'内容'},
+  {id:'Status',   label:'状況'},
+  {id:'Manager',  label:'管理者'},
+  {id:'Owner',    label:'担当者'},
+  {id:'Comments', label:'コメント'},
+];
+const BUILTIN_ISSUES = [
+  {id:'IssueId',        label:'ID'},
+  {id:'Ver',            label:'バージョン'},
+  {id:'Title',          label:'タイトル'},
+  {id:'Body',           label:'内容'},
+  {id:'StartTime',      label:'開始日時'},
+  {id:'CompletionTime', label:'完了日時'},
+  {id:'WorkValue',      label:'作業量'},
+  {id:'ProgressRate',   label:'進捗率'},
+  {id:'Status',         label:'状況'},
+  {id:'Manager',        label:'管理者'},
+  {id:'Owner',          label:'担当者'},
+  {id:'Comments',       label:'コメント'},
+];
+// 表示ON/OFFの状態（デフォルト全ON）
+state.builtinOn = null; // null=未初期化（setTableType時に初期化）
+
+function getBuiltins() {
+  return state.tableType === 'Issues' ? BUILTIN_ISSUES : BUILTIN_RESULTS;
+}
+
+function initBuiltinState() {
+  const builtins = getBuiltins();
+  // 前の種別と列数が違う場合のみリセット
+  if (!state.builtinOn || Object.keys(state.builtinOn).length !== builtins.length) {
+    state.builtinOn = {};
+    builtins.forEach(b => state.builtinOn[b.id] = true);
+  }
+}
+
+function renderBuiltinList() {
+  initBuiltinState();
+  const builtins = getBuiltins();
+  const list = document.getElementById('builtinList');
+  list.innerHTML = '';
+  builtins.forEach(b => {
+    const on = state.builtinOn[b.id];
+    const item = document.createElement('label');
+    item.className = 'builtin-item' + (on ? ' on' : '');
+    item.innerHTML = '<input type="checkbox"' + (on ? ' checked' : '') + '>' + b.label + ' <span style="opacity:.5;font-size:11px">(' + b.id + ')</span>';
+    item.addEventListener('change', () => {
+      state.builtinOn[b.id] = !state.builtinOn[b.id];
+      item.classList.toggle('on', state.builtinOn[b.id]);
+      const onCount = Object.values(state.builtinOn).filter(Boolean).length;
+      document.getElementById('builtinCount').textContent = onCount + ' / ' + builtins.length + ' 列を表示';
+    });
+    list.appendChild(item);
+  });
+  const onCount = Object.values(state.builtinOn).filter(Boolean).length;
+  document.getElementById('builtinCount').textContent = onCount + ' / ' + builtins.length + ' 列を表示';
+}
+
+function guessTypeKey(name) {
+  const n = name.toLowerCase();
+  if (/日付|date|年月日|締切|期限|開始|終了|created|updated/.test(n)) return 'Date';
+  if (/数|金額|価格|amount|price|qty|quantity|count|num|数量|件数|合計|total|残高/.test(n)) return 'Num';
+  if (/チェック|check|フラグ|flag|完了|done/.test(n)) return 'Check';
+  if (/備考|メモ|説明|note|description|comment|詳細|住所|address/.test(n)) return 'Desc';
+  return 'Class';
+}
+
+// 「含める」列のみA～Z順でID再割り当て
+function reassignIds() {
+  const counters = { Class:0, Num:0, Date:0, Check:0, Desc:0 };
+  state.columns.forEach(col => {
+    if (!col.included) return;
+    const pk = getPoolKey(col.type);
+    const pool = pools[pk];
+    col.type = pool[counters[pk]++] || pool[pool.length - 1];
+  });
+}
+
+function getPoolKey(typeId) {
+  for (const [k, arr] of Object.entries(pools)) {
+    if (arr.includes(typeId)) return k;
+  }
+  return 'Class';
+}
+
+function assignId(typeKey, used) {
+  for (const id of (pools[typeKey]||pools.Class)) {
+    if (!used.has(id)){ used.add(id); return id; }
+  }
+  return pools[typeKey][0];
+}
+
+function buildColumns(headers) {
+  const used = new Set();
+  return headers.map(h => ({ original:h, label:h, type:assignId(guessTypeKey(h),used), required:false, included:true }));
+}
+
+// File handling
+const uploadZone = document.getElementById('uploadZone');
+const fileInput  = document.getElementById('fileInput');
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('drag-over'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if(e.target.files[0]) handleFile(e.target.files[0]); });
+
+function showStatus(msg) {
+  document.getElementById('statusBar').style.display = 'flex';
+  document.getElementById('statusText').textContent = msg;
+}
+
+function handleFile(file) {
+  state.fileName = file.name;
+  document.getElementById('tableName').value = file.name.replace(/\.[^.]+$/,'');
+  showStatus('読み込み中: ' + file.name);
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext==='csv') readCSV(file);
+  else if(['xlsx','xls'].includes(ext)) readExcel(file);
+}
+
+function readCSV(file) {
+  const br = new FileReader();
+  br.onload = e => {
+    const bytes = new Uint8Array(e.target.result);
+    const enc = detectEncoding(bytes);
+    const tr = new FileReader();
+    tr.onload = te => parseCSVText(te.target.result, file.name);
+    tr.readAsText(file, enc);
+  };
+  br.readAsArrayBuffer(file);
+}
+
+function detectEncoding(bytes) {
+  if(bytes[0]===0xEF&&bytes[1]===0xBB&&bytes[2]===0xBF) return 'UTF-8';
+  if(bytes[0]===0xFF&&bytes[1]===0xFE) return 'UTF-16LE';
+  if(bytes[0]===0xFE&&bytes[1]===0xFF) return 'UTF-16BE';
+  let sj=0,u8=0;
+  for(let i=0;i<Math.min(bytes.length-1,2000);i++){
+    const b=bytes[i];
+    if((b>=0x81&&b<=0x9F)||(b>=0xE0&&b<=0xFC)){const n=bytes[i+1];if((n>=0x40&&n<=0x7E)||(n>=0x80&&n<=0xFC)){sj++;i++;}}
+    if((b&0xE0)===0xC0||(b&0xF0)===0xE0||(b&0xF8)===0xF0) u8++;
+  }
+  return sj>u8?'Shift-JIS':'UTF-8';
+}
+
+function parseCSVText(text, fileName) {
+  const lines = text.split(/\r?\n/).filter(l=>l.trim());
+  if(!lines.length) return;
+  const delimiters=[',','\t',';','|'];
+  let best=',',bestCount=0;
+  for(const d of delimiters){const c=(lines[0].match(new RegExp('\\'+d,'g'))||[]).length;if(c>bestCount){bestCount=c;best=d;}}
+  const parseRow = r => r.split(best).map(h=>h.trim().replace(/^["']|["']$/g,''));
+  const headers = parseRow(lines[0]);
+  const rows = lines.slice(1).map(parseRow);
+  state.rawHeaders=headers; state.rawRows=rows;
+  state.columns=buildColumns(headers);
+  showStatus('✓ '+fileName+' — '+headers.length+'列 / '+rows.length+'行を検出');
+  renderEditor();
+}
+
+function readExcel(file) {
+  const r = new FileReader();
+  r.onload = e => {
+    state.wb = XLSX.read(e.target.result,{type:'array'});
+    if(state.wb.SheetNames.length>1) renderSheetTabs();
+    else loadSheet(0);
+  };
+  r.readAsArrayBuffer(file);
+}
+
+function renderSheetTabs() {
+  const sel=document.getElementById('sheetSelector'), tabs=document.getElementById('sheetTabs');
+  tabs.innerHTML='';
+  state.wb.SheetNames.forEach((name,i)=>{
+    const btn=document.createElement('button');
+    btn.className='sheet-tab'+(i===0?' active':'');
+    btn.textContent=name;
+    btn.addEventListener('click',()=>{document.querySelectorAll('.sheet-tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');loadSheet(i);});
+    tabs.appendChild(btn);
+  });
+  sel.style.display='block';
+  loadSheet(0);
+}
+
+function loadSheet(idx) {
+  const ws=state.wb.Sheets[state.wb.SheetNames[idx]];
+  const data=XLSX.utils.sheet_to_json(ws,{header:1});
+  const headers=(data[0]||[]).map(h=>String(h||'').trim()).filter(Boolean);
+  const rows=data.slice(1).map(row=>headers.map((_,i)=>String(row[i]??'')));
+  state.rawHeaders=headers; state.rawRows=rows;
+  state.columns=buildColumns(headers);
+  showStatus('✓ シート「'+state.wb.SheetNames[idx]+'」— '+headers.length+'列 / '+rows.length+'行を検出');
+  renderEditor();
+}
+
+function setTableType(type) {
+  state.tableType=type;
+  document.getElementById('typeIssues').classList.toggle('active',type==='Issues');
+  document.getElementById('typeResults').classList.toggle('active',type==='Results');
+  // テーブル種別が変わったら既定列をリセット
+  state.builtinOn = null;
+  if(document.getElementById('builtinList').innerHTML !== '') renderBuiltinList();
+}
+
+function toggleIncludeData() {
+  state.includeData=!state.includeData;
+  document.getElementById('includeDataToggle').classList.toggle('on',state.includeData);
+  document.getElementById('includeDataLabel').textContent=state.includeData?'含める':'含めない';
+}
+
+function renderEditor() {
+  setTableType('Issues');
+  const sec=document.getElementById('editorSection');
+  sec.style.display='block'; sec.classList.add('fade-in');
+  document.getElementById('generateBar').style.display='flex';
+  document.getElementById('outputSection').style.display='none';
+  renderBuiltinList();
+  renderColList();
+}
+
+function renderColList() {
+  const list=document.getElementById('colList');
+  list.innerHTML='';
+  document.getElementById('colCount').textContent=state.columns.filter(c=>c.included).length+' / '+state.columns.length+' 列を含む';
+  state.columns.forEach((col,i)=>{
+    const row=document.createElement('div');
+    row.className='col-row'+(col.included?'':' excluded');
+    row.innerHTML=
+      '<input class="col-input" type="text" value="'+esc(col.original)+'" data-field="original" data-idx="'+i+'" readonly style="color:var(--muted);">'+
+      '<input class="col-input" type="text" value="'+esc(col.label)+'" data-field="label" data-idx="'+i+'" placeholder="表示名">'+
+      '<select class="col-select" data-field="type" data-idx="'+i+'">'+typeOptions(col.type)+'</select>'+
+      '<button class="col-toggle '+(col.required?'on':'')+'" data-field="required" data-idx="'+i+'"></button>'+
+      '<button class="col-toggle '+(col.included?'on':'')+'" data-field="included" data-idx="'+i+'"></button>'+
+      '<button class="del-btn" data-del="'+i+'">×</button>';
+    list.appendChild(row);
+  });
+  // イベントは毎回登録（古い方式：委譲より確実）
+  list.querySelectorAll('[data-field]').forEach(el=>{
+    el.addEventListener('change',()=>updateCol(el));
+    el.addEventListener('input',()=>{ if(el.tagName==='INPUT') updateCol(el); });
+    el.addEventListener('click',()=>{ if(el.classList.contains('col-toggle')) updateCol(el); });
+  });
+  list.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click',()=>{ state.columns.splice(parseInt(btn.dataset.del),1); reassignIds(); renderColList(); });
+  });
+}
+
+function updateCol(el) {
+  const idx=parseInt(el.dataset.idx), field=el.dataset.field;
+  if(el.tagName==='INPUT'){
+    state.columns[idx][field]=el.value;
+  } else if(el.tagName==='SELECT'){
+    state.columns[idx][field]=el.value;
+    reassignIds();
+    renderColList();
+  } else if(el.classList.contains('col-toggle')){
+    state.columns[idx][field]=!state.columns[idx][field];
+    reassignIds();
+    renderColList();
+  }
+}
+
+function typeOptions(current) {
+  const groups=[
+    {label:'テキスト (Class)',pool:pools.Class},
+    {label:'数値 (Num)',pool:pools.Num},
+    {label:'日付 (Date)',pool:pools.Date},
+    {label:'チェック (Check)',pool:pools.Check},
+    {label:'説明文 (Description)',pool:pools.Desc},
+    {label:'添付ファイル',pool:['AttachmentsA']},
+  ];
+  return groups.map(g=>'<optgroup label="'+g.label+'">'+g.pool.map(v=>'<option value="'+v+'"'+(v===current?' selected':'')+'>'+v+'</option>').join('')+'</optgroup>').join('');
+}
+
+document.getElementById('addRowBtn').addEventListener('click',()=>{
+  state.columns.push({original:'',label:'新しいカラム',type:'ClassA',required:false,included:true});
+  reassignIds();
+  renderColList();
+});
+
+// 日付を Pleasanter が受け付ける ISO 形式に正規化
+function normDate(val) {
+  if (!val || !val.trim()) return '';
+  const v = val.trim();
+  if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/.test(v)) {
+    return v.length === 10 ? v + 'T00:00:00' : v.substring(0, 19);
+  }
+  const m1 = v.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m1) { const [,y,mo,d]=m1; return y+'-'+mo.padStart(2,'0')+'-'+d.padStart(2,'0')+'T00:00:00'; }
+  const m2 = v.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m2) { const [,mo,d,y]=m2; return y+'-'+mo.padStart(2,'0')+'-'+d.padStart(2,'0')+'T00:00:00'; }
+  return v;
+}
+
+// Generate JSON
+document.getElementById('generateBtn').addEventListener('click', generateJSON);
+
+function generateJSON() {
+  // 生成前に再割り当て確定
+  reassignIds();
+
+  // 含める列の重複チェック（26列超など異常時のみ発生）
+  const dupCheck = new Map();
+  state.columns.filter(c=>c.included).forEach(col=>{
+    if(!dupCheck.has(col.type)) dupCheck.set(col.type,[]);
+    dupCheck.get(col.type).push(col.label||col.original);
+  });
+  const dupes = [...dupCheck.entries()].filter(([,names])=>names.length>1);
+  if(dupes.length>0){
+    const msg = dupes.map(([id,names])=>id+': '+names.join('、')).join('\n');
+    alert('⚠️ 同じ型のカラムが26列を超えています。\n除外するか型を変更してください。\n\n'+msg);
+    return;
+  }
+
+  const tableName = document.getElementById('tableName').value || 'NewTable';
+  const refType   = state.tableType;
+  const idField   = refType==='Issues' ? 'IssueId' : 'ResultId';
+  const includedCols = state.columns.filter(c=>c.included);
+
+  const columns = includedCols.map(col=>{
+    const def={ColumnName:col.type, LabelText:col.label||col.original};
+    if(col.required) def.ValidateRequired=true;
+    return def;
+  });
+
+  // 既定列のうちONのものだけeditorColsに含める
+  initBuiltinState();
+  const builtins = getBuiltins();
+  // CSVカラムを既定列の間に挟む（Comments直前）
+  const editorCols = [];
+  builtins.forEach(b => {
+    if(b.id === 'Comments') {
+      // CSVカラムをCommentsの直前に挿入
+      includedCols.forEach(c => editorCols.push(c.type));
+    }
+    if(state.builtinOn[b.id]) editorCols.push(b.id);
+  });
+
+  // Data section
+  let dataSection = [];
+  if (state.includeData && state.rawRows.length>0) {
+    const anonymousUser={TenantId:0,Id:0,DeptId:0,LoginId:"Anonymous",TenantManager:false,ServiceManager:false,AllowCreationAtTopSite:false,AllowGroupAdministration:false,AllowGroupCreation:false,AllowApi:false,AllowMovingFromTopSite:false,Disabled:false};
+
+    const bodyRecords = state.rawRows.filter(row=>row.some(v=>(v||'').trim())).map((row,ri)=>{
+      const classHash={},numHash={},dateHash={},descHash={},checkHash={};
+      let title='';
+      includedCols.forEach((col,ci)=>{
+        const val=row[state.rawHeaders.indexOf(col.original)]??'';
+        const t=col.type;
+        if(t.startsWith('Class'))            classHash[t]=String(val);
+        else if(t.startsWith('Num'))         numHash[t]=parseFloat(val)||0;
+        else if(t.startsWith('Date'))        dateHash[t]=normDate(val);
+        else if(t.startsWith('Description')) descHash[t]=String(val);
+        else if(t.startsWith('Check'))       checkHash[t]=(val==='true'||val==='1'||(val+'').toLowerCase()==='true');
+        if(ci===0) title=String(val);
+      });
+      const rec={
+        ClassHash:classHash, NumHash:numHash, DateHash:dateHash,
+        DescriptionHash:descHash, CheckHash:checkHash,
+        SiteId:0, [idField]:ri+1, Ver:1,
+        Title:{Id:ri+1,Ver:1,IsHistory:false,Value:title||String(ri+1),DisplayValue:title||String(ri+1),ItemTitle:true},
+        Body:'',
+        Status:{Value:0},
+        Manager:anonymousUser,
+        Owner:anonymousUser,
+        Locked:false,
+        Creator:anonymousUser,
+        Updator:anonymousUser,
+        Comments:[]
+      };
+      if(refType==='Issues'){
+        const today=new Date().toISOString().split('T')[0]+'T00:00:00';
+        const nowTs=new Date().toISOString().replace('Z','').split('.')[0];
+        rec.StartTime=today;
+        rec.CompletionTime={Status:{Value:100},UpdatedTime:nowTs,Value:today,DisplayValue:today};
+        rec.WorkValue={Value:0.0,ProgressRate:0.0};
+        rec.ProgressRate={CreatedTime:nowTs,StartTime:today,CompletionTime:today,Value:0.0,UpdatedTime:nowTs};
+        rec.RemainingWorkValue={Value:0.0};
+        rec.Status={Value:100};
+      }
+      return rec;
+    });
+
+    // Header.Columns（正規エクスポート準拠）
+    const colNames={
+      [idField]:'ID', Title:'タイトル', Body:'内容', TitleBody:'タイトル/内容',
+      Comments:'コメント', Status:'状況', Manager:'管理者', Owner:'担当者'
+    };
+    includedCols.forEach(col=>{ colNames[col.type]=col.label||col.original; });
+    colNames['Creator']='作成者'; colNames['Updator']='更新者'; colNames['UpdatedTime']='更新日時';
+
+    dataSection=[{
+      Header:[{SiteId:0,SiteTitle:tableName,Columns:colNames}],
+      Body:bodyRecords
+    }];
+  }
+
+  const now = new Date().toISOString();
+  const schema = {
+    HeaderInfo:{
+      AssemblyVersion:"1.4.23.3",
+      BaseSiteId:0, Server:"", CreatorName:"",
+      PackageTime:now,
+      Convertors:[{SiteId:0,SiteTitle:tableName,ReferenceType:refType,IncludeData:state.includeData}],
+      IncludeSitePermission:false, IncludeRecordPermission:false,
+      IncludeColumnPermission:false, IncludeNotifications:false, IncludeReminders:false
+    },
+    Sites:[{
+      TenantId:1, SiteId:0, Title:tableName,
+      SiteName:"", SiteGroupName:"", Body:"",
+      GridGuide:"", EditorGuide:"", CalendarGuide:"", CrosstabGuide:"",
+      GanttGuide:"", BurnDownGuide:"", TimeSeriesGuide:"", AnalyGuide:"",
+      KambanGuide:"", ImageLibGuide:"",
+      ReferenceType:refType, ParentId:0, InheritPermission:0,
+      SiteSettings:{
+        Version:1.017, ReferenceType:refType,
+        Columns:columns,
+        EditorColumnHash:{General:editorCols},
+        NoDisplayIfReadOnly:false,
+        NotInheritPermissionsWhenCreatingSite:false
+      },
+      Publish:false, DisableCrossSearch:false, Comments:[]
+    }],
+    Data:dataSection,
+    Permissions:[],
+    PermissionIdList:{DeptIdList:[],GroupIdList:[],UserIdList:[]}
+  };
+
+  const jsonStr = JSON.stringify(schema, null, 2);
+  const out = document.getElementById('outputSection');
+  out.style.display='block'; out.classList.add('fade-in');
+  document.getElementById('jsonOutput').innerHTML = syntaxHighlight(jsonStr);
+  document.getElementById('outputNotice').innerHTML =
+    '<strong>✓ 生成完了</strong> — カラム数: '+columns.length+
+    ' / レコード数: '+(dataSection[0]?.Body?.length||0)+
+    ' / 種別: '+refType;
+
+  document.getElementById('copyBtn').onclick = () => {
+    navigator.clipboard.writeText(jsonStr).then(()=>{
+      const btn=document.getElementById('copyBtn');
+      btn.textContent='✓ コピー済み'; btn.classList.add('copied');
+      setTimeout(()=>{btn.textContent='📋 コピー';btn.classList.remove('copied');},2000);
+    });
+  };
+  document.getElementById('downloadBtn').onclick = () => {
+    const blob = new Blob([jsonStr],{type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = tableName.replace(/[\\/:*?"<>|]/g,'_')+'_site_package.json';
+    a.click();
+  };
+}
+
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  state={fileName:'',rawHeaders:[],rawRows:[],columns:[],tableType:'Issues',includeData:false,wb:null};
+  document.getElementById('editorSection').style.display='none';
+  document.getElementById('generateBar').style.display='none';
+  document.getElementById('outputSection').style.display='none';
+  document.getElementById('statusBar').style.display='none';
+  document.getElementById('sheetSelector').style.display='none';
+  document.getElementById('tableName').value='';
+  fileInput.value='';
+});
+
+function syntaxHighlight(json) {
+  return json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, match=>{
+      let cls='json-num';
+      if(/^"/.test(match)){cls=/:\s*$/.test(match)?'json-key':'json-str';}
+      else if(/true|false/.test(match)) cls='json-bool';
+      else if(/null/.test(match)) cls='json-null';
+      return '<span class="'+cls+'">'+match+'</span>';
+    });
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+</body>
+</html>
