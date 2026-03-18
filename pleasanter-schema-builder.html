@@ -220,11 +220,30 @@ let state = {
 };
 
 const pools = {
-  Class: Array.from({length:26},(_,i)=>'Class'+String.fromCharCode(65+i)),
-  Num:   Array.from({length:26},(_,i)=>'Num'+String.fromCharCode(65+i)),
-  Date:  Array.from({length:26},(_,i)=>'Date'+String.fromCharCode(65+i)),
-  Check: Array.from({length:26},(_,i)=>'Check'+String.fromCharCode(65+i)),
-  Desc:  Array.from({length:26},(_,i)=>'Description'+String.fromCharCode(65+i)),
+  Class: [
+    ...Array.from({length:26},(_,i)=>'Class'+String.fromCharCode(65+i)),
+    ...Array.from({length:24},(_,i)=>'Class'+String(i+1).padStart(3,'0')),
+  ],
+  Num: [
+    ...Array.from({length:26},(_,i)=>'Num'+String.fromCharCode(65+i)),
+    ...Array.from({length:24},(_,i)=>'Num'+String(i+1).padStart(3,'0')),
+  ],
+  Date: [
+    ...Array.from({length:26},(_,i)=>'Date'+String.fromCharCode(65+i)),
+    ...Array.from({length:24},(_,i)=>'Date'+String(i+1).padStart(3,'0')),
+  ],
+  Check: [
+    ...Array.from({length:26},(_,i)=>'Check'+String.fromCharCode(65+i)),
+    ...Array.from({length:24},(_,i)=>'Check'+String(i+1).padStart(3,'0')),
+  ],
+  Desc: [
+    ...Array.from({length:26},(_,i)=>'Description'+String.fromCharCode(65+i)),
+    ...Array.from({length:24},(_,i)=>'Description'+String(i+1).padStart(3,'0')),
+  ],
+  Attachments: [
+    'AttachmentsA',
+    ...Array.from({length:24},(_,i)=>'Attachments'+String(i+1).padStart(3,'0')),
+  ],
 };
 
 // 既定列定義
@@ -300,10 +319,13 @@ function guessTypeKey(name) {
 }
 
 // 「含める」列のみA～Z順でID再割り当て
+const BUILTIN_FIELDS = new Set(['Title','Body','Status','Manager','Owner','StartTime','CompletionTime','WorkValue','ProgressRate']);
+
 function reassignIds() {
   const counters = { Class:0, Num:0, Date:0, Check:0, Desc:0 };
   state.columns.forEach(col => {
     if (!col.included) return;
+    if (BUILTIN_FIELDS.has(col.type)) return;
     const pk = getPoolKey(col.type);
     const pool = pools[pk];
     col.type = pool[counters[pk]++] || pool[pool.length - 1];
@@ -311,6 +333,7 @@ function reassignIds() {
 }
 
 function getPoolKey(typeId) {
+  if (BUILTIN_FIELDS.has(typeId)) return null;
   for (const [k, arr] of Object.entries(pools)) {
     if (arr.includes(typeId)) return k;
   }
@@ -495,13 +518,17 @@ function updateCol(el) {
 }
 
 function typeOptions(current) {
+  const builtinFields = state.tableType === 'Issues'
+    ? ['Title','Body','StartTime','CompletionTime','WorkValue','ProgressRate','Status','Manager','Owner']
+    : ['Title','Body','Status','Manager','Owner'];
   const groups=[
+    {label:'既定列 (Builtin)', pool: builtinFields},
     {label:'テキスト (Class)',pool:pools.Class},
     {label:'数値 (Num)',pool:pools.Num},
     {label:'日付 (Date)',pool:pools.Date},
     {label:'チェック (Check)',pool:pools.Check},
     {label:'説明文 (Description)',pool:pools.Desc},
-    {label:'添付ファイル',pool:['AttachmentsA']},
+    {label:'添付ファイル',pool:pools.Attachments},
   ];
   return groups.map(g=>'<optgroup label="'+g.label+'">'+g.pool.map(v=>'<option value="'+v+'"'+(v===current?' selected':'')+'>'+v+'</option>').join('')+'</optgroup>').join('');
 }
@@ -551,11 +578,14 @@ function generateJSON() {
   const idField   = refType==='Issues' ? 'IssueId' : 'ResultId';
   const includedCols = state.columns.filter(c=>c.included);
 
-  const columns = includedCols.map(col=>{
-    const def={ColumnName:col.type, LabelText:col.label||col.original};
-    if(col.required) def.ValidateRequired=true;
-    return def;
-  });
+  // 既定列にマッピングされた列はColumnsに含めない（Title/Bodyなど）
+  const columns = includedCols
+    .filter(col => !BUILTIN_FIELDS.has(col.type))
+    .map(col=>{
+      const def={ColumnName:col.type, LabelText:col.label||col.original};
+      if(col.required) def.ValidateRequired=true;
+      return def;
+    });
 
   // 既定列のうちONのものだけeditorColsに含める
   initBuiltinState();
@@ -564,8 +594,8 @@ function generateJSON() {
   const editorCols = [];
   builtins.forEach(b => {
     if(b.id === 'Comments') {
-      // CSVカラムをCommentsの直前に挿入
-      includedCols.forEach(c => editorCols.push(c.type));
+      // CSVカラム（既定列マッピング以外）をCommentsの直前に挿入
+      includedCols.filter(c => !BUILTIN_FIELDS.has(c.type)).forEach(c => editorCols.push(c.type));
     }
     if(state.builtinOn[b.id]) editorCols.push(b.id);
   });
@@ -577,26 +607,40 @@ function generateJSON() {
 
     const bodyRecords = state.rawRows.filter(row=>row.some(v=>(v||'').trim())).map((row,ri)=>{
       const classHash={},numHash={},dateHash={},descHash={},checkHash={};
-      let title='';
+      let title='', builtinBody='', builtinStatus=null,
+          builtinManager=null, builtinOwner=null,
+          builtinStart=null, builtinCompletion=null,
+          builtinWork=null, builtinProgress=null;
       includedCols.forEach((col,ci)=>{
         const val=row[state.rawHeaders.indexOf(col.original)]??'';
         const t=col.type;
-        if(t.startsWith('Class'))            classHash[t]=String(val);
+        // 既定列マッピング
+        if(t==='Title')          { title=String(val); }
+        else if(t==='Body')      { builtinBody=String(val); }
+        else if(t==='Status')    { builtinStatus=parseInt(val)||0; }
+        else if(t==='Manager')   { builtinManager=String(val); }
+        else if(t==='Owner')     { builtinOwner=String(val); }
+        else if(t==='StartTime') { builtinStart=normDate(val); }
+        else if(t==='CompletionTime') { builtinCompletion=normDate(val); }
+        else if(t==='WorkValue') { builtinWork=parseFloat(val)||0; }
+        else if(t==='ProgressRate') { builtinProgress=parseFloat(val)||0; }
+        // 通常カラム
+        else if(t.startsWith('Class'))            classHash[t]=String(val);
         else if(t.startsWith('Num'))         numHash[t]=parseFloat(val)||0;
         else if(t.startsWith('Date'))        dateHash[t]=normDate(val);
         else if(t.startsWith('Description')) descHash[t]=String(val);
         else if(t.startsWith('Check'))       checkHash[t]=(val==='true'||val==='1'||(val+'').toLowerCase()==='true');
-        if(ci===0) title=String(val);
+        if(ci===0 && !title) title=String(val);
       });
       const rec={
         ClassHash:classHash, NumHash:numHash, DateHash:dateHash,
         DescriptionHash:descHash, CheckHash:checkHash,
         SiteId:0, [idField]:ri+1, Ver:1,
         Title:{Id:ri+1,Ver:1,IsHistory:false,Value:title||String(ri+1),DisplayValue:title||String(ri+1),ItemTitle:true},
-        Body:'',
-        Status:{Value:0},
-        Manager:anonymousUser,
-        Owner:anonymousUser,
+        Body: builtinBody || '',
+        Status:{Value: builtinStatus !== null ? builtinStatus : 0},
+        Manager: anonymousUser,
+        Owner:   anonymousUser,
         Locked:false,
         Creator:anonymousUser,
         Updator:anonymousUser,
@@ -605,8 +649,10 @@ function generateJSON() {
       if(refType==='Issues'){
         const today=new Date().toISOString().split('T')[0]+'T00:00:00';
         const nowTs=new Date().toISOString().replace('Z','').split('.')[0];
-        rec.StartTime=today;
-        rec.CompletionTime={Status:{Value:100},UpdatedTime:nowTs,Value:today,DisplayValue:today};
+        rec.StartTime= builtinStart || today;
+        rec.CompletionTime={Status:{Value: builtinProgress !== null ? builtinProgress : 100},UpdatedTime:nowTs,Value: builtinCompletion || today,DisplayValue: builtinCompletion || today};
+        if(builtinWork !== null) rec.WorkValue = builtinWork;
+        if(builtinProgress !== null) rec.ProgressRate = builtinProgress;
         rec.WorkValue={Value:0.0,ProgressRate:0.0};
         rec.ProgressRate={CreatedTime:nowTs,StartTime:today,CompletionTime:today,Value:0.0,UpdatedTime:nowTs};
         rec.RemainingWorkValue={Value:0.0};
