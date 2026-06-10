@@ -406,7 +406,16 @@ function parseCSVText(text, fileName) {
   const delimiters=[',','\t',';','|'];
   let best=',',bestCount=0;
   for(const d of delimiters){const c=(lines[0].match(new RegExp('\\'+d,'g'))||[]).length;if(c>bestCount){bestCount=c;best=d;}}
-  const parseRow = r => r.split(best).map(h=>h.trim().replace(/^["']|["']$/g,''));
+  const parseRow = r => {
+    const res=[]; let cur='',q=false;
+    for(let i=0;i<r.length;i++){
+      const c=r[i];
+      if(q){ if(c==='"'&&r[i+1]==='"'){cur+='"';i++;} else if(c==='"'){q=false;} else cur+=c; }
+      else { if(c==='"'){q=true;} else if(c===best){res.push(cur.trim());cur='';} else cur+=c; }
+    }
+    res.push(cur.trim());
+    return res;
+  };
   const headers = parseRow(lines[0]);
   const rows = lines.slice(1).map(parseRow);
   state.rawHeaders=headers; state.rawRows=rows;
@@ -442,8 +451,10 @@ function renderSheetTabs() {
 function loadSheet(idx) {
   const ws=state.wb.Sheets[state.wb.SheetNames[idx]];
   const data=XLSX.utils.sheet_to_json(ws,{header:1});
-  const headers=(data[0]||[]).map(h=>String(h||'').trim()).filter(Boolean);
-  const rows=data.slice(1).map(row=>headers.map((_,i)=>String(row[i]??'')));
+  const headerRow=(data[0]||[]).map(h=>String(h||'').trim());
+  const colIdxs=headerRow.map((h,i)=>h?i:-1).filter(i=>i>=0);
+  const headers=colIdxs.map(i=>headerRow[i]);
+  const rows=data.slice(1).map(row=>colIdxs.map(i=>String(row[i]??'')));
   state.rawHeaders=headers; state.rawRows=rows;
   state.columns=buildColumns(headers);
   showStatus('✓ シート「'+state.wb.SheetNames[idx]+'」— '+headers.length+'列 / '+rows.length+'行を検出');
@@ -651,12 +662,12 @@ function generateJSON() {
         const nowTs=new Date().toISOString().replace('Z','').split('.')[0];
         rec.StartTime= builtinStart || today;
         rec.CompletionTime={Status:{Value: builtinProgress !== null ? builtinProgress : 100},UpdatedTime:nowTs,Value: builtinCompletion || today,DisplayValue: builtinCompletion || today};
-        if(builtinWork !== null) rec.WorkValue = builtinWork;
-        if(builtinProgress !== null) rec.ProgressRate = builtinProgress;
-        rec.WorkValue={Value:0.0,ProgressRate:0.0};
-        rec.ProgressRate={CreatedTime:nowTs,StartTime:today,CompletionTime:today,Value:0.0,UpdatedTime:nowTs};
-        rec.RemainingWorkValue={Value:0.0};
-        rec.Status={Value:100};
+        const wv = builtinWork !== null ? builtinWork : 0.0;
+        const pr = builtinProgress !== null ? builtinProgress : 0.0;
+        rec.WorkValue={Value:wv,ProgressRate:pr};
+        rec.ProgressRate={CreatedTime:nowTs,StartTime:today,CompletionTime:today,Value:pr,UpdatedTime:nowTs};
+        rec.RemainingWorkValue={Value:Math.max(0,wv*(100-pr)/100)};
+        rec.Status={Value: builtinStatus !== null ? builtinStatus : 100};
       }
       return rec;
     });
