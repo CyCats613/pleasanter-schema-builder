@@ -108,6 +108,32 @@
   .json-key{color:var(--accent2);}.json-str{color:#ffb86c;}.json-num{color:var(--accent);}.json-bool{color:#ff79c6;}.json-null{color:var(--muted);}
   .notice{background:rgba(127,255,106,.05);border:1px solid rgba(127,255,106,.15);border-radius:10px;padding:14px 18px;font-family:var(--mono);font-size:12px;color:var(--muted);line-height:1.8;margin-top:14px;}
   .notice strong{color:var(--accent);}
+
+  /* API連携セクション */
+  .api-section{margin-top:28px;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+  .api-section-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;cursor:pointer;user-select:none;transition:background .15s;}
+  .api-section-header:hover{background:var(--surface2);}
+  .api-section-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;}
+  .api-section-badge{font-family:var(--mono);font-size:10px;background:rgba(74,240,208,.1);color:var(--accent2);border:1px solid rgba(74,240,208,.3);border-radius:4px;padding:2px 8px;}
+  .api-section-body{display:none;padding:20px;border-top:1px solid var(--border);}
+  .api-section-body.open{display:block;}
+  .api-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+  @media(max-width:600px){.api-grid{grid-template-columns:1fr;}}
+  .api-field{display:flex;flex-direction:column;gap:6px;}
+  .api-label{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+  .api-input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;padding:9px 12px;width:100%;transition:border-color .15s;}
+  .api-input:focus{outline:none;border-color:var(--accent2);}
+  .api-input::placeholder{color:var(--muted);opacity:.6;}
+  .api-hint{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.6;background:rgba(255,255,255,.03);border-radius:6px;padding:10px 14px;margin-bottom:16px;}
+  .api-hint a{color:var(--accent2);text-decoration:none;}
+  .api-hint a:hover{text-decoration:underline;}
+  .btn-api{background:rgba(74,240,208,.15);color:var(--accent2);border:1px solid rgba(74,240,208,.4);border-radius:8px;font-family:var(--sans);font-size:14px;font-weight:700;padding:12px 24px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:8px;}
+  .btn-api:hover{background:rgba(74,240,208,.25);border-color:var(--accent2);}
+  .btn-api:disabled{opacity:.5;cursor:not-allowed;}
+  .api-result{margin-top:16px;display:none;}
+  .api-result.success{display:block;background:rgba(127,255,106,.05);border:1px solid rgba(127,255,106,.3);border-radius:8px;padding:14px 18px;font-family:var(--mono);font-size:12px;color:var(--accent);line-height:1.8;}
+  .api-result.error{display:block;background:rgba(255,107,107,.05);border:1px solid rgba(255,107,107,.3);border-radius:8px;padding:14px 18px;font-family:var(--mono);font-size:12px;color:var(--accent3);line-height:1.8;}
+  .api-cors-warning{background:rgba(255,185,0,.06);border:1px solid rgba(255,185,0,.3);border-radius:8px;padding:12px 16px;font-family:var(--mono);font-size:11px;color:#ffd060;line-height:1.7;margin-bottom:14px;}
   .divider{height:1px;background:var(--border);margin:36px 0;}
   .fade-in{animation:fadeIn .35s ease forwards;}
   @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -210,6 +236,50 @@
     </div>
     <div class="json-output" id="jsonOutput"></div>
     <div class="notice" id="outputNotice"></div>
+
+    <!-- API連携パネル -->
+    <div class="api-section" id="apiSection" style="display:none;">
+      <div class="api-section-header" onclick="toggleApiPanel()">
+        <div class="api-section-title">
+          🔗 Pleasanter APIで直接サイト作成
+          <span class="api-section-badge">BETA</span>
+        </div>
+        <span id="apiToggleIcon" style="font-family:var(--mono);color:var(--muted);font-size:13px;">▼ 展開</span>
+      </div>
+      <div class="api-section-body" id="apiSectionBody">
+        <div class="api-cors-warning">
+          ⚠️ ブラウザのCORS制限により、<strong>オンプレミス版</strong>では事前にCORSヘッダーの設定が必要な場合があります。<br>
+          <strong>Pleasanter.net（クラウド版）</strong>はCORSを許可しているため、そのままご利用いただけます。<br>
+          ※ APIキーはブラウザ内のみで使用され、外部には送信されません。
+        </div>
+        <div class="api-hint">
+          <strong>使い方：</strong><br>
+          1. Pleasanterの管理画面 → ユーザー設定 → APIキー でAPIキーを発行<br>
+          2. 親サイトID = サイト作成先の親フォルダのサイトID（ルートなら <code style="color:var(--accent)">0</code> または <code style="color:var(--accent)">1</code>）<br>
+          3. 「サイトを作成」ボタンをクリック → Pleasanterに直接テーブルが作成されます<br>
+          <a href="https://pleasanter.org/manual/api-key" target="_blank" rel="noopener">▶ APIキーの取得方法（公式マニュアル）</a>
+        </div>
+        <div class="api-grid">
+          <div class="api-field" style="grid-column:1/-1;">
+            <label class="api-label">Pleasanter サーバーURL</label>
+            <input type="url" class="api-input" id="apiBaseUrl"
+              placeholder="https://pleasanter.net/fs  または  http://your-server/pleasanter">
+          </div>
+          <div class="api-field">
+            <label class="api-label">APIキー</label>
+            <input type="password" class="api-input" id="apiKey" placeholder="発行したAPIキーを入力">
+          </div>
+          <div class="api-field">
+            <label class="api-label">親サイトID</label>
+            <input type="number" class="api-input" id="apiParentSiteId" placeholder="例: 0" value="0" min="0">
+          </div>
+        </div>
+        <button class="btn-api" id="apiCreateBtn" onclick="createSiteViaApi()">
+          ⚡ Pleasanterにサイトを作成
+        </button>
+        <div class="api-result" id="apiResult"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -686,6 +756,19 @@ function generateJSON() {
     }];
   }
 
+  // API連携用に SiteSettings を保持
+  const siteSettingsObj = {
+    Version: 1.017,
+    ReferenceType: refType,
+    Columns: columns,
+    EditorColumnHash: {General: editorCols},
+    NoDisplayIfReadOnly: false,
+    NotInheritPermissionsWhenCreatingSite: false,
+  };
+  lastGeneratedSiteSettings = siteSettingsObj;
+  lastGeneratedTitle = tableName;
+  lastGeneratedRefType = refType;
+
   const now = new Date().toISOString();
   const schema = {
     HeaderInfo:{
@@ -703,13 +786,7 @@ function generateJSON() {
       GanttGuide:"", BurnDownGuide:"", TimeSeriesGuide:"", AnalyGuide:"",
       KambanGuide:"", ImageLibGuide:"",
       ReferenceType:refType, ParentId:0, InheritPermission:0,
-      SiteSettings:{
-        Version:1.017, ReferenceType:refType,
-        Columns:columns,
-        EditorColumnHash:{General:editorCols},
-        NoDisplayIfReadOnly:false,
-        NotInheritPermissionsWhenCreatingSite:false
-      },
+      SiteSettings:siteSettingsObj,
       Publish:false, DisableCrossSearch:false, Comments:[]
     }],
     Data:dataSection,
@@ -740,15 +817,29 @@ function generateJSON() {
     a.download = tableName.replace(/[\\/:*?"<>|]/g,'_')+'_site_package.json';
     a.click();
   };
+
+  // APIパネルを表示（初回生成時のみ自動展開）
+  const apiSec = document.getElementById('apiSection');
+  if (apiSec.style.display === 'none' || !apiSec.style.display) {
+    apiSec.style.display = 'block';
+  }
+  // 結果をリセット
+  const apiResult = document.getElementById('apiResult');
+  apiResult.className = 'api-result';
+  apiResult.style.display = 'none';
 }
 
 document.getElementById('resetBtn').addEventListener('click',()=>{
   state={fileName:'',rawHeaders:[],rawRows:[],columns:[],tableType:'Issues',includeData:false,wb:null};
+  lastGeneratedSiteSettings=null; lastGeneratedTitle=''; lastGeneratedRefType='';
   document.getElementById('editorSection').style.display='none';
   document.getElementById('generateBar').style.display='none';
   document.getElementById('outputSection').style.display='none';
   document.getElementById('statusBar').style.display='none';
   document.getElementById('sheetSelector').style.display='none';
+  document.getElementById('apiSection').style.display='none';
+  document.getElementById('apiSectionBody').classList.remove('open');
+  document.getElementById('apiToggleIcon').textContent='▼ 展開';
   document.getElementById('tableName').value='';
   fileInput.value='';
 });
@@ -765,6 +856,94 @@ function syntaxHighlight(json) {
 }
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ── API連携 ──────────────────────────────────────────────────────────
+
+// 最後に生成したSiteSettingsを保持
+let lastGeneratedSiteSettings = null;
+let lastGeneratedTitle = '';
+let lastGeneratedRefType = '';
+
+function toggleApiPanel() {
+  const body = document.getElementById('apiSectionBody');
+  const icon = document.getElementById('apiToggleIcon');
+  const isOpen = body.classList.toggle('open');
+  icon.textContent = isOpen ? '▲ 閉じる' : '▼ 展開';
+}
+
+async function createSiteViaApi() {
+  if (!lastGeneratedSiteSettings) {
+    alert('先にJSONを生成してください。');
+    return;
+  }
+
+  const baseUrl = document.getElementById('apiBaseUrl').value.trim().replace(/\/+$/, '');
+  const apiKey  = document.getElementById('apiKey').value.trim();
+  const parentId = parseInt(document.getElementById('apiParentSiteId').value) || 0;
+
+  if (!baseUrl) { alert('サーバーURLを入力してください。'); return; }
+  if (!apiKey)  { alert('APIキーを入力してください。'); return; }
+
+  const btn = document.getElementById('apiCreateBtn');
+  const resultEl = document.getElementById('apiResult');
+  btn.disabled = true;
+  btn.textContent = '⏳ 送信中...';
+  resultEl.className = 'api-result';
+  resultEl.style.display = 'none';
+
+  const endpoint = `${baseUrl}/api/items/${parentId}/createsite`;
+
+  const body = {
+    ApiVersion: '1.1',
+    ApiKey: apiKey,
+    TenantId: 1,
+    Title: lastGeneratedTitle,
+    ReferenceType: lastGeneratedRefType,
+    InheritPermission: parentId,
+    SiteSettings: lastGeneratedSiteSettings,
+  };
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    const text = await res.text();
+    let json;
+    try { json = JSON.parse(text); } catch { json = null; }
+
+    if (res.ok && json && (json.StatusCode === 200 || json.Id)) {
+      const siteId = json.Id || json.SiteId || '(不明)';
+      resultEl.className = 'api-result success';
+      resultEl.innerHTML =
+        '✓ サイトの作成に成功しました！<br>' +
+        '作成されたサイトID: <strong>' + siteId + '</strong><br>' +
+        'ステータスコード: ' + res.status;
+    } else {
+      const msg = (json && (json.Message || json.StatusCode)) ? JSON.stringify(json, null, 2) : text;
+      resultEl.className = 'api-result error';
+      resultEl.innerHTML =
+        '✗ APIエラーが発生しました (HTTP ' + res.status + ')<br><br>' +
+        '<pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;">' + esc(msg.substring(0, 800)) + '</pre>';
+    }
+  } catch (err) {
+    resultEl.className = 'api-result error';
+    if (err.name === 'TypeError' && err.message.includes('fetch')) {
+      resultEl.innerHTML =
+        '✗ ネットワークエラー / CORS エラー<br><br>' +
+        'オンプレミス版の場合は、Pleasanterサーバー側でCORSの許可設定が必要です。<br>' +
+        '詳細: ' + esc(err.message);
+    } else {
+      resultEl.innerHTML = '✗ エラー: ' + esc(err.message);
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ Pleasanterにサイトを作成';
+    resultEl.style.display = 'block';
+  }
+}
 </script>
 </body>
 </html>
